@@ -1,0 +1,10 @@
+[project]
+name = "tecnoloc-reconciliation"
+version = "0.1.0"
+description = "Aplicativo de conciliação PayFy x ERP Protheus"
+authors = [{name = "Tecnoloc"}]
+readme = "README.md"
+requires-python = ">=3.11"
+
+[project.scripts]
+tecnoloc-reconciliation = "tecnoloc_reconciliation.cli:main"

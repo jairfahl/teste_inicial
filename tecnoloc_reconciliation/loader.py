@@ -1,23 +1,9 @@
-"""Data loading utilities for spreadsheet inputs."""
-
-from __future__ import annotations
-
+main
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
-import pandas as pd
-
-from .models import ErpRecord, PayfyExpense
-
-DATE_FORMATS = [
-    "%d/%m/%Y %H:%M",
-    "%d/%m/%Y %H:%M:%S",
-    "%d/%m/%Y",
-    "%Y-%m-%d %H:%M",
-    "%Y-%m-%d %H:%M:%S",
-    "%Y-%m-%d",
-]
+main
 
 
 class DataValidationError(RuntimeError):
@@ -25,10 +11,7 @@ class DataValidationError(RuntimeError):
 
 
 def _parse_date(value: str, *, field_name: str) -> datetime:
-    text = value.strip()
-    for fmt in DATE_FORMATS:
-        try:
-            return datetime.strptime(text, fmt)
+main
         except ValueError:
             continue
     raise DataValidationError(f"Data inválida '{value}' no campo '{field_name}'.")
@@ -36,11 +19,7 @@ def _parse_date(value: str, *, field_name: str) -> datetime:
 
 def _parse_float(value: str, *, field_name: str) -> float:
     normalized = value.replace("R$", "").replace("$", "").replace(" ", "")
-    normalized = (
-        normalized.replace(".", "").replace(",", ".")
-        if "," in normalized and normalized.count(",") == 1
-        else normalized
-    )
+main
     try:
         return float(normalized)
     except ValueError as exc:
@@ -48,46 +27,7 @@ def _parse_float(value: str, *, field_name: str) -> float:
 
 
 def _read_rows(path: Path) -> Iterable[Dict[str, str]]:
-    suffix = path.suffix.lower()
-
-    if suffix == ".xlsx":
-        try:
-            frame = pd.read_excel(path, dtype=str, engine="openpyxl")
-        except Exception as exc:  # pragma: no cover - dependente do ambiente
-            raise DataValidationError(f"Não foi possível abrir a planilha: {path}") from exc
-    elif suffix == ".csv":
-        try:
-            frame = pd.read_csv(path, dtype=str)
-        except Exception as exc:  # pragma: no cover - dependente do ambiente
-            raise DataValidationError(f"Não foi possível abrir o arquivo CSV: {path}") from exc
-    else:
-        raise DataValidationError(
-            "Formato de arquivo não suportado. Utilize arquivos .xlsx ou .csv."
-        )
-
-    if frame.empty:
-        raise DataValidationError("Planilha vazia.")
-
-    frame.columns = ["" if col is None else str(col).strip() for col in frame.columns]
-
-    if any(header == "" for header in frame.columns):
-        raise DataValidationError("Cabeçalho inválido ou ausente na planilha.")
-
-    frame = frame.fillna("")
-
-    data_rows: List[Dict[str, str]] = []
-    for _, series in frame.iterrows():
-        row_dict: Dict[str, str] = {}
-        for header, value in series.items():
-            if header == "":
-                continue
-            if isinstance(value, str):
-                row_dict[header] = value.strip()
-            else:
-                row_dict[header] = str(value)
-        data_rows.append(row_dict)
-
-    return data_rows
+main
 
 
 def load_payfy_expenses(path: Path) -> List[PayfyExpense]:

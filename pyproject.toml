@@ -5,10 +5,7 @@ description = "Aplicativo de conciliação PayFy x ERP Protheus"
 authors = [{name = "Tecnoloc"}]
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = [
-    "openpyxl>=3.1",
-    "pandas>=2.2",
-]
+main
 
 [project.scripts]
 tecnoloc-reconciliation = "tecnoloc_reconciliation.cli:main"

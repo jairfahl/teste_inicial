@@ -5,18 +5,13 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+main
 
 from . import loader, matcher, preprocess, reports
 from .models import ErpRecord, PayfyExpense
 
 
-DEFAULT_DATA_DIR = Path("/downloads/Codex/TLC")
-DEFAULT_CARD_FILE = DEFAULT_DATA_DIR / "cartao tecnicos.xlsx"
-DEFAULT_EXPENSE_FILE = DEFAULT_DATA_DIR / "despesas.xlsx"
-DEFAULT_ERP_FILE = DEFAULT_DATA_DIR / "saldo empresa.xlsx"
-
-
+main
 def _parse_period(value: str | None) -> datetime:
     if not value:
         raise preprocess.PeriodNotProvidedError("Período de conciliação não informado.")
@@ -50,7 +45,7 @@ def _prepare_data(
     return payfy_expenses, erp_records
 
 
-def run_app(args: argparse.Namespace) -> tuple[str, Optional[Path]]:
+main
     period = _parse_period(args.period)
     card_path = Path(args.cards)
     expenses_path = Path(args.expenses)
@@ -67,35 +62,13 @@ def run_app(args: argparse.Namespace) -> tuple[str, Optional[Path]]:
     matcher.reconcile(payfy_expenses, erp_records)
     diagnostics = preprocess.summarize_failures(payfy_expenses, erp_records)
     result = reports.build_reconciliation_result(payfy_expenses, erp_records, diagnostics)
-    export_path: Optional[Path] = None
-    if getattr(args, "out", None):
-        payload = reports.build_export_payload(result)
-        export_path = reports.export_excel(payload, args.out)
-    return reports.render_reports(result), export_path
+main
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Conciliação PayFy x ERP – Tecnoloc")
     parser.add_argument("--period", help="Período de conciliação (dd/mm/aaaa – hh:mm)")
-    parser.add_argument(
-        "--cards",
-        default=str(DEFAULT_CARD_FILE),
-        help=f"Planilha de cartão técnicos (XLSX). Padrão: {DEFAULT_CARD_FILE}",
-    )
-    parser.add_argument(
-        "--expenses",
-        default=str(DEFAULT_EXPENSE_FILE),
-        help=f"Planilha de despesas PayFy (XLSX). Padrão: {DEFAULT_EXPENSE_FILE}",
-    )
-    parser.add_argument(
-        "--erp",
-        default=str(DEFAULT_ERP_FILE),
-        help=f"Planilha de saldo ERP (XLSX). Padrão: {DEFAULT_ERP_FILE}",
-    )
-    parser.add_argument(
-        "--out",
-        help="Arquivo Excel de saída (XLSX) para exportar o relatório consolidado.",
-    )
+main
     return parser
 
 
@@ -103,10 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_argument_parser()
     args = parser.parse_args(argv)
     try:
-        report, export_path = run_app(args)
-        print(report)
-        if export_path:
-            print(f"Arquivo Excel gerado em: {export_path}")
+main
         return 0
     except preprocess.PeriodNotProvidedError as error:
         parser.error(str(error))

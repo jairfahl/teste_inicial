@@ -1,14 +1,9 @@
-"""Report generation utilities."""
-
-from __future__ import annotations
-
-from statistics import mean
-from typing import Dict, Iterable
+main
 
 from .models import ErpRecord, PayfyExpense, ReconciliationResult
 
 
-def _serialize_payfy(expense: PayfyExpense) -> Dict[str, str]:
+main
     payload = {
         "Usuário": expense.user,
         "Data": expense.date.strftime("%d/%m/%Y %H:%M"),
@@ -19,10 +14,7 @@ def _serialize_payfy(expense: PayfyExpense) -> Dict[str, str]:
         "Match": expense.match_type or "",
         "Motivo": expense.failure_reason or "",
     }
-    return payload
-
-
-def _serialize_erp(record: ErpRecord) -> Dict[str, str]:
+main
     payload = {
         "Usuário": record.user,
         "Data": record.date.strftime("%d/%m/%Y %H:%M"),
@@ -31,6 +23,7 @@ def _serialize_erp(record: ErpRecord) -> Dict[str, str]:
         "Match": record.match_type or "",
         "Motivo": record.failure_reason or "",
     }
+main
     return payload
 
 
@@ -80,6 +73,7 @@ def render_summary(result: ReconciliationResult) -> Dict[str, str]:
     }
 
 
+main
 def render_table(title: str, records: Iterable[Dict[str, str]]) -> str:
     lines = [title]
     for record in records:
@@ -126,3 +120,4 @@ def render_reports(result: ReconciliationResult) -> str:
         )
     )
     return "\n".join(lines)
+main

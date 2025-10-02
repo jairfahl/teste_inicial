@@ -1,15 +1,9 @@
-"""Data loading utilities for CSV inputs."""
-
-from __future__ import annotations
-
-import csv
+main
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
-from .models import ErpRecord, PayfyExpense
-
-DATE_FORMATS = ["%d/%m/%Y %H:%M", "%d/%m/%Y", "%Y-%m-%d %H:%M", "%Y-%m-%d"]
+main
 
 
 class DataValidationError(RuntimeError):
@@ -17,9 +11,7 @@ class DataValidationError(RuntimeError):
 
 
 def _parse_date(value: str, *, field_name: str) -> datetime:
-    for fmt in DATE_FORMATS:
-        try:
-            return datetime.strptime(value.strip(), fmt)
+main
         except ValueError:
             continue
     raise DataValidationError(f"Data inválida '{value}' no campo '{field_name}'.")
@@ -27,7 +19,7 @@ def _parse_date(value: str, *, field_name: str) -> datetime:
 
 def _parse_float(value: str, *, field_name: str) -> float:
     normalized = value.replace("R$", "").replace("$", "").replace(" ", "")
-    normalized = normalized.replace(".", "").replace(",", ".") if "," in normalized and normalized.count(",") == 1 else normalized
+main
     try:
         return float(normalized)
     except ValueError as exc:
@@ -35,12 +27,7 @@ def _parse_float(value: str, *, field_name: str) -> float:
 
 
 def _read_rows(path: Path) -> Iterable[Dict[str, str]]:
-    with path.open("r", encoding="utf-8-sig") as handler:
-        reader = csv.DictReader(handler)
-        if reader.fieldnames is None:
-            raise DataValidationError("Arquivo sem cabeçalho identificado.")
-        for row in reader:
-            yield {key.strip(): (value or "").strip() for key, value in row.items()}
+main
 
 
 def load_payfy_expenses(path: Path) -> List[PayfyExpense]:

@@ -8,14 +8,7 @@ Aplicativo de linha de comando para conciliação financeira automática entre P
 
 ## Uso
 
-1. Prepare os arquivos CSV exportados do PayFy e Protheus conforme estrutura indicada.
-2. Execute:
-
-```bash
-python -m tecnoloc_reconciliation --period "01/01/2024 – 08:00" --cards cartoes.csv --expenses despesas.csv --erp erp.csv
-```
-
-O aplicativo imprimirá um relatório completo no terminal com resumos, correspondências e pendências.
+main
 
 ## Estrutura
 
@@ -27,4 +20,4 @@ O aplicativo imprimirá um relatório completo no terminal com resumos, correspo
 
 ## Testes rápidos
 
-Para executar um teste manual, utilize arquivos CSV fictícios e verifique o relatório impresso.
+ main

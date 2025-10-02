@@ -5,12 +5,13 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 from pathlib import Path
-from typing import List
+main
 
 from . import loader, matcher, preprocess, reports
 from .models import ErpRecord, PayfyExpense
 
 
+main
 def _parse_period(value: str | None) -> datetime:
     if not value:
         raise preprocess.PeriodNotProvidedError("Período de conciliação não informado.")
@@ -44,7 +45,7 @@ def _prepare_data(
     return payfy_expenses, erp_records
 
 
-def run_app(args: argparse.Namespace) -> str:
+main
     period = _parse_period(args.period)
     card_path = Path(args.cards)
     expenses_path = Path(args.expenses)
@@ -61,15 +62,13 @@ def run_app(args: argparse.Namespace) -> str:
     matcher.reconcile(payfy_expenses, erp_records)
     diagnostics = preprocess.summarize_failures(payfy_expenses, erp_records)
     result = reports.build_reconciliation_result(payfy_expenses, erp_records, diagnostics)
-    return reports.render_reports(result)
+main
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Conciliação PayFy x ERP – Tecnoloc")
     parser.add_argument("--period", help="Período de conciliação (dd/mm/aaaa – hh:mm)")
-    parser.add_argument("--cards", help="Planilha de cartão técnicos (CSV)", required=True)
-    parser.add_argument("--expenses", help="Planilha de despesas PayFy (CSV)", required=True)
-    parser.add_argument("--erp", help="Planilha de saldo ERP (CSV)", required=True)
+main
     return parser
 
 
@@ -77,8 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_argument_parser()
     args = parser.parse_args(argv)
     try:
-        report = run_app(args)
-        print(report)
+main
         return 0
     except preprocess.PeriodNotProvidedError as error:
         parser.error(str(error))

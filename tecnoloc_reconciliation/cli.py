@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from . import loader, matcher, preprocess, reports
 from .models import ErpRecord, PayfyExpense
@@ -50,7 +50,7 @@ def _prepare_data(
     return payfy_expenses, erp_records
 
 
-def run_app(args: argparse.Namespace) -> str:
+def run_app(args: argparse.Namespace) -> tuple[str, Optional[Path]]:
     period = _parse_period(args.period)
     card_path = Path(args.cards)
     expenses_path = Path(args.expenses)
@@ -67,7 +67,11 @@ def run_app(args: argparse.Namespace) -> str:
     matcher.reconcile(payfy_expenses, erp_records)
     diagnostics = preprocess.summarize_failures(payfy_expenses, erp_records)
     result = reports.build_reconciliation_result(payfy_expenses, erp_records, diagnostics)
-    return reports.render_reports(result)
+    export_path: Optional[Path] = None
+    if getattr(args, "out", None):
+        payload = reports.build_export_payload(result)
+        export_path = reports.export_excel(payload, args.out)
+    return reports.render_reports(result), export_path
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -88,6 +92,10 @@ def build_argument_parser() -> argparse.ArgumentParser:
         default=str(DEFAULT_ERP_FILE),
         help=f"Planilha de saldo ERP (XLSX). Padrão: {DEFAULT_ERP_FILE}",
     )
+    parser.add_argument(
+        "--out",
+        help="Arquivo Excel de saída (XLSX) para exportar o relatório consolidado.",
+    )
     return parser
 
 
@@ -95,8 +103,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_argument_parser()
     args = parser.parse_args(argv)
     try:
-        report = run_app(args)
+        report, export_path = run_app(args)
         print(report)
+        if export_path:
+            print(f"Arquivo Excel gerado em: {export_path}")
         return 0
     except preprocess.PeriodNotProvidedError as error:
         parser.error(str(error))

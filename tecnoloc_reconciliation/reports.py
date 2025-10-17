@@ -12,7 +12,7 @@ main
         "Categoria": expense.category,
         "ID": expense.expense_id or "",
         "Match": expense.match_type or "",
-        "Motivo": expense.failure_reason or "",
+        "Motivo": (expense.failure_cause or expense.failure_reason or ""),
     }
 main
     payload = {
@@ -21,7 +21,7 @@ main
         "Valor": f"{record.value:.2f}",
         "Tipo": record.erp_type,
         "Match": record.match_type or "",
-        "Motivo": record.failure_reason or "",
+        "Motivo": (record.failure_cause or record.failure_reason or ""),
     }
 main
     return payload

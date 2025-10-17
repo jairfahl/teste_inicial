@@ -37,6 +37,7 @@ class PayfyExpense(BaseRecord):
     match_id: Optional[str] = None
     match_type: Optional[str] = None
     failure_reason: Optional[str] = None
+    failure_cause: Optional[str] = None
 
 
 @dataclass
@@ -45,9 +46,12 @@ class ErpRecord(BaseRecord):
 
     erp_type: str = ""
     reference: Optional[str] = None
+    document_id: Optional[str] = None
+    movement_date: Optional[datetime] = None
     match_id: Optional[str] = None
     match_type: Optional[str] = None
     failure_reason: Optional[str] = None
+    failure_cause: Optional[str] = None
 
 
 @dataclass

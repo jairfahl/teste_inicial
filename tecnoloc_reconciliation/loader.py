@@ -1,7 +1,7 @@
 main
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 main
 
@@ -57,6 +57,13 @@ def load_payfy_expenses(path: Path) -> List[PayfyExpense]:
     return expenses
 
 
+def _extract_optional(row: Dict[str, str], *candidates: str) -> Optional[str]:
+    for candidate in candidates:
+        if candidate in row and row[candidate]:
+            return row[candidate]
+    return None
+
+
 def load_erp_records(path: Path) -> List[ErpRecord]:
     """Load the ERP balance report."""
 
@@ -76,6 +83,11 @@ def load_erp_records(path: Path) -> List[ErpRecord]:
             missing = ", ".join(sorted(required - set(row)))
             raise DataValidationError(f"Campos obrigatórios ausentes: {missing}.")
         date = _parse_date(row["Data"], field_name="Data")
+        movement_raw = _extract_optional(row, "Data Mov", "data_mov")
+        movement_date = (
+            _parse_date(movement_raw, field_name="Data Mov") if movement_raw else None
+        )
+        document_id = _extract_optional(row, "ID Doc", "Id Doc", "id_doc")
         value_fields = ["Carga Empresa", "Carga Cartão", "Descarga Cartão", "Tarifas", "Reembolsos"]
         for field in value_fields:
             amount = _parse_float(row[field], field_name=field)
@@ -88,6 +100,8 @@ def load_erp_records(path: Path) -> List[ErpRecord]:
                     date=date,
                     value=amount,
                     erp_type=entry_type,
+                    document_id=document_id,
+                    movement_date=movement_date,
                     raw=row,
                 )
             )

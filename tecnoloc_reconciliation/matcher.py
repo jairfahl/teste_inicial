@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional
 
 from .models import ErpRecord, PayfyExpense
+
+
+def _set_failure(record: PayfyExpense | ErpRecord, reason: str) -> None:
+    record.failure_reason = reason
+    if hasattr(record, "failure_cause"):
+        record.failure_cause = reason
 
 
 @dataclass
@@ -18,107 +23,134 @@ class Match:
     tolerance: float = 0.0
 
 
-def _within_tolerance(a: float, b: float, tolerance: float) -> bool:
-    return abs(a - b) <= tolerance
-
-
-def _date_close(a: datetime, b: datetime, tolerance_days: int = 1) -> bool:
-    return abs((a - b).days) <= tolerance_days
-
-
 def exact_match(payfy: List[PayfyExpense], erp: List[ErpRecord]) -> List[Match]:
     matches: List[Match] = []
-    payfy_by_key: Dict[Tuple[str, datetime, float], List[PayfyExpense]] = defaultdict(list)
-    for item in payfy:
-        if item.match_id or item.failure_reason:
+    payfy_by_id: Dict[str, List[PayfyExpense]] = defaultdict(list)
+    for expense in payfy:
+        if expense.match_id or expense.failure_reason or not expense.expense_id:
             continue
-        payfy_by_key[(item.user, item.date, item.value)].append(item)
+        payfy_by_id[expense.expense_id].append(expense)
 
     for record in erp:
-        if record.match_id or record.failure_reason:
+        if record.match_id or record.failure_reason or not record.document_id:
             continue
-        key = (record.user, record.date, record.value)
-        candidates = payfy_by_key.get(key)
-        if candidates:
-            expense = candidates.pop(0)
-            match = Match([expense], [record], "Match exato (1:1)")
-            matches.append(match)
-            expense.match_id = record.reference or expense.expense_id or "MATCH"
-            record.match_id = expense.expense_id or record.reference or "MATCH"
-            expense.match_type = match.match_type
-            record.match_type = match.match_type
-    return matches
-
-
-def tolerance_match(payfy: List[PayfyExpense], erp: List[ErpRecord], tolerance: float = 0.01) -> List[Match]:
-    matches: List[Match] = []
-    for record in erp:
-        if record.match_id or record.failure_reason:
+        candidates = payfy_by_id.get(record.document_id)
+        if not candidates:
             continue
-        for expense in payfy:
-            if expense.match_id or expense.failure_reason:
+        movement_date = record.movement_date or record.date
+        if not movement_date:
+            continue
+        matched_expense: Optional[PayfyExpense] = None
+        for candidate in candidates:
+            if candidate.match_id or candidate.failure_reason:
                 continue
-            if expense.user != record.user:
+            if candidate.value != record.value:
                 continue
-            if not _date_close(expense.date, record.date):
+            approval_date = candidate.approval_date
+            if not approval_date:
                 continue
-            if _within_tolerance(expense.value, record.value, tolerance):
-                match = Match([expense], [record], "Match tolerância (1:1)", tolerance=tolerance)
-                matches.append(match)
-                expense.match_id = record.reference or expense.expense_id or "MATCH"
-                record.match_id = expense.expense_id or record.reference or "MATCH"
-                expense.match_type = match.match_type
-                record.match_type = match.match_type
+            if (
+                approval_date.month == movement_date.month
+                and approval_date.year == movement_date.year
+            ):
+                matched_expense = candidate
                 break
-    return matches
-
-
-def aggregation_match(payfy: List[PayfyExpense], erp: List[ErpRecord], tolerance: float = 0.01) -> List[Match]:
-    matches: List[Match] = []
-    unresolved_payfy = [p for p in payfy if not p.match_id and not p.failure_reason]
-    unresolved_erp = [e for e in erp if not e.match_id and not e.failure_reason]
-
-    for record in unresolved_erp:
-        bucket = [expense for expense in unresolved_payfy if expense.user == record.user and _date_close(expense.date, record.date)]
-        bucket.sort(key=lambda item: item.value, reverse=True)
-        combination: List[PayfyExpense] = []
-        total = 0.0
-        for expense in bucket:
-            if expense in combination:
-                continue
-            if total + expense.value <= record.value + tolerance:
-                combination.append(expense)
-                total += expense.value
-            if _within_tolerance(total, record.value, tolerance):
-                match = Match(combination.copy(), [record], "Match agregado (N:1)", tolerance=tolerance)
-                matches.append(match)
-                match_id = record.reference or "AGG"
-                for item in combination:
-                    item.match_id = match_id
-                    item.match_type = match.match_type
-                record.match_id = match_id
-                record.match_type = match.match_type
-                break
+        if not matched_expense:
+            continue
+        candidates.remove(matched_expense)
+        match = Match([matched_expense], [record], "Match exato (1:1)")
+        matches.append(match)
+        match_id = (
+            record.document_id
+            or record.reference
+            or matched_expense.expense_id
+            or "MATCH"
+        )
+        matched_expense.match_id = match_id
+        matched_expense.match_type = match.match_type
+        record.match_id = match_id
+        record.match_type = match.match_type
     return matches
 
 
 def classify_unmatched(payfy: Iterable[PayfyExpense], erp: Iterable[ErpRecord]) -> None:
+    payfy_by_id: Dict[str, List[PayfyExpense]] = defaultdict(list)
     for expense in payfy:
-        if expense.match_id:
-            continue
-        if not expense.failure_reason:
-            expense.failure_reason = "Sem correspondência entre bases"
+        if expense.expense_id:
+            payfy_by_id[expense.expense_id].append(expense)
+
+    erp_by_id: Dict[str, List[ErpRecord]] = defaultdict(list)
     for record in erp:
-        if record.match_id:
+        if record.document_id:
+            erp_by_id[record.document_id].append(record)
+
+    for expense in payfy:
+        if expense.match_id or expense.failure_reason:
             continue
-        if not record.failure_reason:
-            record.failure_reason = "Sem correspondência entre bases"
+        if not expense.expense_id:
+            _set_failure(expense, "Despesa sem identificador")
+            continue
+        candidates = erp_by_id.get(expense.expense_id)
+        if not candidates:
+            _set_failure(expense, "Sem correspondência no Protheus")
+            continue
+        same_value = [record for record in candidates if record.value == expense.value]
+        if not same_value:
+            _set_failure(expense, "Valor divergente no Protheus")
+            continue
+        approval_date = expense.approval_date
+        if not approval_date:
+            _set_failure(expense, "Despesa sem aprovação registrada")
+            continue
+        competence_match = False
+        for record in same_value:
+            movement_date = record.movement_date or record.date
+            if not movement_date:
+                continue
+            if (
+                approval_date.month == movement_date.month
+                and approval_date.year == movement_date.year
+            ):
+                competence_match = True
+                break
+        if not competence_match:
+            _set_failure(expense, "Aprovação fora do mês")
+
+    for record in erp:
+        if record.match_id or record.failure_reason:
+            continue
+        if not record.document_id:
+            _set_failure(record, "Lançamento sem identificador")
+            continue
+        candidates = payfy_by_id.get(record.document_id)
+        if not candidates:
+            _set_failure(record, "Sem correspondência no PayFy")
+            continue
+        same_value = [expense for expense in candidates if expense.value == record.value]
+        if not same_value:
+            _set_failure(record, "Valor divergente no PayFy")
+            continue
+        movement_date = record.movement_date or record.date
+        if not movement_date:
+            _set_failure(record, "Competência ausente no Protheus")
+            continue
+        competence_match = False
+        for expense in same_value:
+            approval_date = expense.approval_date
+            if not approval_date:
+                continue
+            if (
+                approval_date.month == movement_date.month
+                and approval_date.year == movement_date.year
+            ):
+                competence_match = True
+                break
+        if not competence_match:
+            _set_failure(record, "Competência divergente no PayFy")
 
 
 def reconcile(payfy: List[PayfyExpense], erp: List[ErpRecord]) -> List[Match]:
     matches = []
     matches.extend(exact_match(payfy, erp))
-    matches.extend(tolerance_match(payfy, erp))
-    matches.extend(aggregation_match(payfy, erp))
     classify_unmatched(payfy, erp)
     return matches

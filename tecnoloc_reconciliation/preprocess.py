@@ -16,6 +16,12 @@ PAYFY_CATEGORY_MAP = {
 }
 
 
+def _set_failure(record: PayfyExpense | ErpRecord, reason: str) -> None:
+    record.failure_reason = reason
+    if hasattr(record, "failure_cause"):
+        record.failure_cause = reason
+
+
 class PeriodNotProvidedError(RuntimeError):
     """Raised when the reconciliation period is missing."""
 
@@ -40,7 +46,7 @@ def apply_date_rules(expenses: Iterable[PayfyExpense]) -> None:
         if expense.approval_date and abs((expense.approval_date - expense.date).days) <= 1:
             continue
         if expense.approval_date and expense.approval_date.month != expense.date.month:
-            expense.failure_reason = "Aprovação fora do mês corrente"
+            _set_failure(expense, "Aprovação fora do mês")
 
 
 def detect_duplicates(expenses: List[PayfyExpense]) -> Dict[str, List[PayfyExpense]]:
@@ -50,7 +56,7 @@ def detect_duplicates(expenses: List[PayfyExpense]) -> Dict[str, List[PayfyExpen
     duplicates = {key: entries for key, entries in registry.items() if len(entries) > 1}
     for entries in duplicates.values():
         for entry in entries:
-            entry.failure_reason = "Duplicidade detectada"
+            _set_failure(entry, "Duplicidade detectada")
     return duplicates
 
 
@@ -58,7 +64,7 @@ def ensure_status_validated(expenses: Iterable[PayfyExpense]) -> None:
     for expense in expenses:
         status = expense.status.lower()
         if status != "validado" and not expense.approval_date:
-            expense.failure_reason = "Status não validado"
+            _set_failure(expense, "Status não validado")
         elif status == "validado" and expense.approval_date is None:
             expense.approval_date = expense.date
 
@@ -66,15 +72,17 @@ def ensure_status_validated(expenses: Iterable[PayfyExpense]) -> None:
 def validate_period(expenses: Iterable[PayfyExpense], reference: datetime) -> None:
     for expense in expenses:
         if expense.date.month != reference.month or expense.date.year != reference.year:
-            expense.failure_reason = "Transação fora do período"
+            _set_failure(expense, "Transação fora do período")
 
 
 def summarize_failures(expenses: Iterable[PayfyExpense], erp_records: Iterable[ErpRecord]) -> Dict[str, int]:
     counter: Counter[str] = Counter()
     for expense in expenses:
-        if expense.failure_reason:
-            counter[expense.failure_reason] += 1
+        reason = expense.failure_cause or expense.failure_reason
+        if reason:
+            counter[reason] += 1
     for record in erp_records:
-        if record.failure_reason:
-            counter[record.failure_reason] += 1
+        reason = record.failure_cause or record.failure_reason
+        if reason:
+            counter[reason] += 1
     return dict(counter)

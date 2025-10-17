@@ -1,9 +1,15 @@
-main
+"""Reporting utilities for the reconciliation pipeline."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from statistics import mean
+from typing import Callable, Dict, Iterable, List, Tuple
 
 from .models import ErpRecord, PayfyExpense, ReconciliationResult
 
 
-main
+def _serialize_payfy(expense: PayfyExpense) -> Dict[str, str]:
     payload = {
         "Usuário": expense.user,
         "Data": expense.date.strftime("%d/%m/%Y %H:%M"),
@@ -14,7 +20,14 @@ main
         "Match": expense.match_type or "",
         "Motivo": expense.failure_reason or "",
     }
-main
+    if expense.approval_date:
+        payload["Aprovação"] = expense.approval_date.strftime("%d/%m/%Y %H:%M")
+    else:
+        payload["Aprovação"] = ""
+    return payload
+
+
+def _serialize_erp(record: ErpRecord) -> Dict[str, str]:
     payload = {
         "Usuário": record.user,
         "Data": record.date.strftime("%d/%m/%Y %H:%M"),
@@ -23,7 +36,8 @@ main
         "Match": record.match_type or "",
         "Motivo": record.failure_reason or "",
     }
-main
+    if record.reference:
+        payload["Referência"] = record.reference
     return payload
 
 
@@ -73,7 +87,6 @@ def render_summary(result: ReconciliationResult) -> Dict[str, str]:
     }
 
 
-main
 def render_table(title: str, records: Iterable[Dict[str, str]]) -> str:
     lines = [title]
     for record in records:
@@ -120,4 +133,70 @@ def render_reports(result: ReconciliationResult) -> str:
         )
     )
     return "\n".join(lines)
-main
+
+
+def _ensure_openpyxl() -> Tuple["Workbook", Callable[[int], str]]:
+    try:
+        from openpyxl import Workbook
+        from openpyxl.utils import get_column_letter
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("A geração de relatórios Excel requer a instalação de 'openpyxl'.") from exc
+    return Workbook, get_column_letter
+
+
+def _autosize_columns(worksheet, get_column_letter) -> None:
+    widths: Dict[int, int] = {}
+    for row in worksheet.iter_rows(values_only=True):
+        for index, value in enumerate(row, start=1):
+            if value is None:
+                continue
+            text = str(value)
+            widths[index] = max(widths.get(index, 0), len(text))
+    for index, width in widths.items():
+        worksheet.column_dimensions[get_column_letter(index)].width = min(width + 2, 80)
+
+
+def _write_sheet(workbook, get_column_letter, title: str, rows: List[Dict[str, str]]) -> None:
+    sheet = workbook.create_sheet(title)
+    if not rows:
+        return
+    headers = list(rows[0].keys())
+    sheet.append(headers)
+    for row in rows:
+        sheet.append([row.get(header, "") for header in headers])
+    _autosize_columns(sheet, get_column_letter)
+
+
+def write_excel_report(result: ReconciliationResult, path: Path) -> None:
+    """Persist the reconciliation result into an Excel workbook."""
+
+    Workbook, get_column_letter = _ensure_openpyxl()
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+
+    summary_sheet = workbook.create_sheet("Resumo")
+    for key, value in render_summary(result).items():
+        summary_sheet.append([key, value])
+    _autosize_columns(summary_sheet, get_column_letter)
+
+    diagnostics_sheet = workbook.create_sheet("Diagnóstico")
+    if result.diagnostics:
+        diagnostics_sheet.append(["Motivo", "Ocorrências"])
+        for key, value in result.diagnostics.items():
+            diagnostics_sheet.append([key, value])
+    _autosize_columns(diagnostics_sheet, get_column_letter)
+
+    payfy_matched = [_serialize_payfy(item) for item in result.matched_payfy]
+    _write_sheet(workbook, get_column_letter, "PayFy Conciliado", payfy_matched)
+
+    erp_matched = [_serialize_erp(item) for item in result.matched_erp]
+    _write_sheet(workbook, get_column_letter, "ERP Conciliado", erp_matched)
+
+    payfy_unmatched = [_serialize_payfy(item) for item in result.unmatched_payfy]
+    _write_sheet(workbook, get_column_letter, "PayFy Pendente", payfy_unmatched)
+
+    erp_unmatched = [_serialize_erp(item) for item in result.unmatched_erp]
+    _write_sheet(workbook, get_column_letter, "ERP Pendente", erp_unmatched)
+
+    workbook.save(path)
+
